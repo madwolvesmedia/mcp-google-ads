@@ -342,7 +342,7 @@ Brand exclusions: `suggest_brands` → `create_brand_list` with the returned MID
 | **API version** | v25 | v25 | v25 | v21 | v25 |
 | **Total tools** | 74 | 43 | 52 | 63 | 2 |
 | **Write tools** | 51 | 16 | 26 | 25 | 0 |
-| **Tests** | 360+ | partial | 0 | 0 | N/A |
+| **Tests** | 500 | partial | 0 | 0 | N/A |
 
 ### Features
 
@@ -382,7 +382,7 @@ Brand exclusions: `suggest_brands` → `create_brand_list` with the returned MID
 | Read-only mode | yes | - | - | - | N/A |
 | Blocked operations list | yes | - | - | - | N/A |
 | Input validation (char limits, URLs) | yes | yes | Pydantic | partial | N/A |
-| Unit test coverage | 360+ tests | partial | 0 | 0 | N/A |
+| Unit test coverage | 500 tests | partial | 0 | 0 | N/A |
 | Binary size / startup | 10.8 MB / instant | Python | Python | Python | Python |
 
 ---
