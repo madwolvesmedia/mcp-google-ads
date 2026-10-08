@@ -19,6 +19,16 @@ fn base(config: &Config, start_paused: bool) -> CreatePmaxCampaignParams<'_> {
         business_name: "BizCo",
         geo_target_ids: vec!["2840".into()],
         start_paused,
+        language_ids: vec![],
+        merchant_id: None,
+        feed_label: None,
+        target_cpa: None,
+        target_roas: None,
+        url_expansion_opt_out: None,
+        automatically_created_assets: None,
+        enable_local: None,
+        listing_group: None,
+        image_assets: vec![],
     }
 }
 

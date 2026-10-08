@@ -421,6 +421,51 @@ impl GoogleAdsClient {
         Ok(results)
     }
 
+    /// Look up brands by name prefix (`BrandSuggestionService.SuggestBrands`).
+    ///
+    /// REST: `POST /v25/customers/{cid}:suggestBrands`. This is a read RPC,
+    /// not a mutate. Each result's `id` is the Commercial Knowledge Graph MID
+    /// required to create a `SharedCriterion.brand`.
+    pub async fn suggest_brands(
+        &self,
+        customer_id: &str,
+        brand_prefix: &str,
+    ) -> Result<Vec<serde_json::Value>> {
+        let normalized_id = Self::normalize_customer_id(customer_id);
+        let url = format!(
+            "{}/customers/{}:suggestBrands",
+            self.base_url, normalized_id
+        );
+        let headers = self.build_headers().await?;
+
+        let body = serde_json::json!({
+            "brandPrefix": brand_prefix,
+        });
+
+        let response = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .json(&body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_default();
+            return Err(parse_google_ads_error(status, &error_body));
+        }
+
+        let response_json: serde_json::Value = response.json().await?;
+        let results = response_json
+            .get("brands")
+            .or_else(|| response_json.get("results"))
+            .and_then(|r| r.as_array())
+            .cloned()
+            .unwrap_or_default();
+        Ok(results)
+    }
+
     /// Validate that every operation in `operations` uses a top-level key
     /// from [`VALID_MUTATE_OPERATION_KEYS`]. Returns the first offending key.
     pub fn validate_mutate_operations(
