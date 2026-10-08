@@ -77,6 +77,22 @@ impl NextActionHint {
         }
     }
 
+    /// Hint to enable a newly created PMax asset group via
+    /// `update_pmax_asset_group` (asset groups are not an `enable_entity` type).
+    pub fn enable_pmax_asset_group() -> Self {
+        Self {
+            tool: "update_pmax_asset_group".to_string(),
+            params: serde_json::json!({
+                "asset_group_id": "<resolve asset_group_id from confirm_and_apply response>",
+                "status": "ENABLED",
+            }),
+            description: "Asset group was created in PAUSED status. After confirm_and_apply, \
+                 read the asset group id from the mutate responses and call \
+                 update_pmax_asset_group with status='ENABLED'."
+                .to_string(),
+        }
+    }
+
     /// Generic hint for a newly created entity awaiting an explicit enable.
     ///
     /// Used for entity types that don't have a more specific helper

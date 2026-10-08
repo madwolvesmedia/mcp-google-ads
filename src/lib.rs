@@ -544,22 +544,180 @@ pub struct CreatePmaxCampaignToolParams {
     pub campaign_name: String,
     /// Daily budget in dollars.
     pub daily_budget: f64,
-    /// Bidding strategy (e.g. MAXIMIZE_CONVERSIONS, MAXIMIZE_CONVERSION_VALUE).
+    /// Bidding strategy: MAXIMIZE_CONVERSIONS or MAXIMIZE_CONVERSION_VALUE.
     pub bidding_strategy: String,
-    /// Final URLs for the asset group.
+    /// Target CPA in dollars (MAXIMIZE_CONVERSIONS).
+    pub target_cpa: Option<f64>,
+    /// Target ROAS as a ratio, e.g. 3.5 = 350% (MAXIMIZE_CONVERSION_VALUE).
+    pub target_roas: Option<f64>,
+    /// Final URLs for the first asset group.
     pub final_urls: Vec<String>,
-    /// Headlines (3-15, max 30 chars each).
+    /// Headlines (3-15, max 30 chars each). Optional for feed-only retail PMax
+    /// when merchant_id is set; required otherwise. Existing callers that pass
+    /// headlines keep the same contract.
+    #[serde(default)]
     pub headlines: Vec<String>,
-    /// Long headlines (1-5, max 90 chars each).
+    /// Long headlines (1-5, max 90 chars). Optional for feed-only retail PMax.
+    #[serde(default)]
     pub long_headlines: Vec<String>,
-    /// Descriptions (2-5, max 90 chars each).
+    /// Descriptions (2-5, max 90 chars). Optional for feed-only retail PMax.
+    #[serde(default)]
     pub descriptions: Vec<String>,
-    /// Business name (max 25 chars).
+    /// Business name (max 25 chars). Optional for feed-only retail PMax.
+    #[serde(default)]
     pub business_name: String,
-    /// Geographic target IDs.
+    /// Geographic target IDs (e.g. Greece = "2300"). Use search_geo_targets.
     pub geo_target_ids: Vec<String>,
+    /// Language constant IDs (e.g. Greek = "1022"). Optional.
+    #[serde(default)]
+    pub language_ids: Vec<String>,
     /// If true, campaign starts PAUSED (default true).
     pub start_paused: Option<bool>,
+    /// Merchant Center account ID. When set, creates a retail/feed PMax and
+    /// text/image assets become optional.
+    pub merchant_id: Option<String>,
+    /// Merchant Center feed label (replaces deprecated sales_country). A
+    /// country code such as "GR" is a valid feed label. Does not by itself
+    /// enable serving in that country — set geo_target_ids too.
+    pub feed_label: Option<String>,
+    /// Opt out of Final URL expansion. Writes
+    /// FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION (campaign.url_expansion_opt_out
+    /// was removed from the API).
+    pub url_expansion_opt_out: Option<bool>,
+    /// Automatically created text assets (TEXT_ASSET_AUTOMATION). true = OPTED_IN.
+    pub automatically_created_assets: Option<bool>,
+    /// Enable local inventory ads from Merchant Center.
+    pub enable_local: Option<bool>,
+    /// Listing group tree for the first asset group. When merchant_id is set
+    /// and this is omitted, an all-products UNIT_INCLUDED root is created.
+    pub listing_group: Option<tools::listing_groups::ListingGroupSpec>,
+    /// Existing image (or other) assets to link onto the first asset group.
+    #[serde(default)]
+    pub image_assets: Vec<tools::pmax::ImageAssetLink>,
+}
+
+/// Parameters for creating an additional PMax asset group.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CreatePmaxAssetGroupToolParams {
+    pub customer_id: Option<String>,
+    pub campaign_id: String,
+    /// Asset group name.
+    pub name: String,
+    pub final_urls: Vec<String>,
+    /// Optional headlines. Omit for a feed-only group.
+    #[serde(default)]
+    pub headlines: Vec<String>,
+    #[serde(default)]
+    pub long_headlines: Vec<String>,
+    #[serde(default)]
+    pub descriptions: Vec<String>,
+    pub business_name: Option<String>,
+    #[serde(default)]
+    pub image_assets: Vec<tools::pmax::ImageAssetLink>,
+    /// Defaults to PAUSED.
+    pub status: Option<models::AdStatus>,
+    /// When listing_group is omitted, create an all-products listing group
+    /// (required for retail PMax). Set false for non-retail asset groups.
+    pub include_all_products: Option<bool>,
+    pub listing_group: Option<tools::listing_groups::ListingGroupSpec>,
+}
+
+/// Parameters for renaming, pausing/enabling, or setting final URLs on a PMax asset group.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UpdatePmaxAssetGroupToolParams {
+    pub customer_id: Option<String>,
+    pub asset_group_id: String,
+    pub name: Option<String>,
+    /// ENABLED or PAUSED.
+    pub status: Option<models::AdStatus>,
+    pub final_urls: Option<Vec<String>>,
+}
+
+/// Parameters for replacing an asset group's listing group tree.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SetPmaxListingGroupsToolParams {
+    pub customer_id: Option<String>,
+    pub asset_group_id: String,
+    /// Convenience: include only these values (everything else excluded).
+    pub include_only: Option<Vec<tools::listing_groups::ListingGroupValue>>,
+    /// Convenience: exclude these values (everything else included).
+    pub exclude: Option<Vec<tools::listing_groups::ListingGroupValue>>,
+    /// Full sibling list under a synthetic root. Nested `children` allowed.
+    pub partitions: Option<Vec<tools::listing_groups::ListingGroupPartition>>,
+}
+
+/// Parameters for reading an asset group's listing group tree.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GetPmaxListingGroupTreeToolParams {
+    pub customer_id: Option<String>,
+    pub asset_group_id: String,
+}
+
+/// Parameters for creating a BRANDS shared set.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CreateBrandListToolParams {
+    pub customer_id: Option<String>,
+    pub name: String,
+    /// Commercial Knowledge Graph MIDs (`BrandInfo.entity_id`). Required —
+    /// BrandInfo.display_name is output-only, so names cannot be written.
+    #[serde(default)]
+    pub entity_ids: Vec<String>,
+    /// Ignored except to produce a clear error: names cannot be written.
+    pub brand_names: Option<Vec<String>>,
+    /// Campaigns to attach as negative brand-list criteria (PMax exclusions).
+    #[serde(default)]
+    pub campaign_ids: Vec<String>,
+}
+
+/// Parameters for attaching/detaching a brand list to campaigns.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BrandListCampaignsToolParams {
+    pub customer_id: Option<String>,
+    pub shared_set_id: String,
+    pub campaign_ids: Vec<String>,
+}
+
+/// Parameters for brand name lookup.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SuggestBrandsToolParams {
+    pub customer_id: Option<String>,
+    /// Prefix of the brand name, e.g. "Nik".
+    pub brand_prefix: String,
+}
+
+/// Parameters for PMax campaign automation / URL-expansion settings.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SetPmaxCampaignSettingsToolParams {
+    pub customer_id: Option<String>,
+    pub campaign_id: String,
+    /// true = opt out of Final URL expansion
+    /// (FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION=OPTED_OUT).
+    pub url_expansion_opt_out: Option<bool>,
+    /// Automatically created text assets (TEXT_ASSET_AUTOMATION).
+    pub automatically_created_assets: Option<bool>,
+}
+
+/// Parameters for customer- or campaign-level tracking templates.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SetTrackingToolParams {
+    pub customer_id: Option<String>,
+    /// "customer" (account) or "campaign".
+    pub level: String,
+    /// Required when level is "campaign".
+    pub campaign_id: Option<String>,
+    /// Tracking URL template. Empty string clears it.
+    pub tracking_url_template: Option<String>,
+    /// Final URL suffix (query params). Empty string clears it.
+    pub final_url_suffix: Option<String>,
 }
 
 /// Parameters for adding audience targeting to a campaign.
@@ -1769,7 +1927,7 @@ impl GoogleAdsMcp {
     // ── Phase 5: PMax ─────────────────────────────────────────────────
 
     #[tool(
-        description = "Create a Performance Max campaign with text assets. Image assets require separate upload. Returns a preview — call confirm_and_apply to execute."
+        description = "Create a Performance Max campaign. For a feed-only (Shopping-style) retail PMax, pass merchant_id (and optional feed_label, e.g. GR) and omit headlines/descriptions/images. Text assets remain required when merchant_id is omitted (backward compatible). Campaigns default to PAUSED. Returns a preview — call confirm_and_apply to execute."
     )]
     async fn create_pmax_campaign(
         &self,
@@ -1795,7 +1953,283 @@ impl GoogleAdsMcp {
             business_name: &params.business_name,
             geo_target_ids: params.geo_target_ids,
             start_paused,
+            language_ids: params.language_ids,
+            merchant_id: params.merchant_id.as_deref(),
+            feed_label: params.feed_label.as_deref(),
+            target_cpa: params.target_cpa,
+            target_roas: params.target_roas,
+            url_expansion_opt_out: params.url_expansion_opt_out,
+            automatically_created_assets: params.automatically_created_assets,
+            enable_local: params.enable_local,
+            listing_group: params.listing_group,
+            image_assets: params.image_assets,
         }) {
+            Ok(preview) => preview.to_string(),
+            Err(e) => e.to_json().to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Create an additional asset group on an existing Performance Max campaign. Feed-only is allowed (no headlines/images). Retail groups get an all-products listing group unless listing_group is supplied. Defaults to PAUSED. Returns a preview — call confirm_and_apply to execute."
+    )]
+    async fn create_pmax_asset_group(
+        &self,
+        Parameters(params): Parameters<CreatePmaxAssetGroupToolParams>,
+    ) -> String {
+        if let Some(err) = self.check_write_allowed() {
+            return err;
+        }
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let config = self.config.clone();
+        match tools::pmax_asset_groups::create_pmax_asset_group(
+            &tools::pmax_asset_groups::CreatePmaxAssetGroupParams {
+                config: &config,
+                customer_id: &cid,
+                campaign_id: &params.campaign_id,
+                name: &params.name,
+                final_urls: params.final_urls,
+                headlines: params.headlines,
+                long_headlines: params.long_headlines,
+                descriptions: params.descriptions,
+                business_name: params.business_name.as_deref(),
+                image_assets: params.image_assets,
+                status: params.status,
+                include_all_products: params.include_all_products.unwrap_or(true),
+                listing_group: params.listing_group,
+            },
+        ) {
+            Ok(preview) => preview.to_string(),
+            Err(e) => e.to_json().to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Rename, pause/enable, or set final URLs on a Performance Max asset group. At least one of name, status, final_urls is required. Returns a preview — call confirm_and_apply to execute."
+    )]
+    async fn update_pmax_asset_group(
+        &self,
+        Parameters(params): Parameters<UpdatePmaxAssetGroupToolParams>,
+    ) -> String {
+        if let Some(err) = self.check_write_allowed() {
+            return err;
+        }
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let config = self.config.clone();
+        match tools::pmax_asset_groups::update_pmax_asset_group(
+            &config,
+            &cid,
+            &params.asset_group_id,
+            params.name.as_deref(),
+            params.status,
+            params.final_urls,
+        ) {
+            Ok(preview) => preview.to_string(),
+            Err(e) => e.to_json().to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Replace a Performance Max asset group's listing group (product filter) tree atomically. Use include_only (e.g. brand X only), exclude (everything except product types A and B), or partitions for a nested tree. An 'everything else' sibling is added at each subdivision if omitted. Dimensions: BRAND, ITEM_ID, PRODUCT_TYPE_L1..L5, PRODUCT_CATEGORY_L1..L5, CUSTOM_LABEL_0..4. Returns a preview — call confirm_and_apply to execute."
+    )]
+    async fn set_pmax_listing_groups(
+        &self,
+        Parameters(params): Parameters<SetPmaxListingGroupsToolParams>,
+    ) -> String {
+        if let Some(err) = self.check_write_allowed() {
+            return err;
+        }
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let config = self.config.clone();
+        let spec = tools::listing_groups::ListingGroupSpec {
+            include_only: params.include_only,
+            exclude: params.exclude,
+            partitions: params.partitions,
+        };
+        let client = match GoogleAdsClient::new(&config) {
+            Ok(c) => c,
+            Err(e) => return e.to_json().to_string(),
+        };
+        match tools::listing_groups::set_pmax_listing_groups(
+            &client,
+            &config,
+            &cid,
+            &params.asset_group_id,
+            spec,
+        )
+        .await
+        {
+            Ok(preview) => preview.to_string(),
+            Err(e) => e.to_json().to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Read a Performance Max asset group's listing group (product filter) tree in nested, labelled form, including 'everything else' nodes."
+    )]
+    async fn get_pmax_listing_group_tree(
+        &self,
+        Parameters(params): Parameters<GetPmaxListingGroupTreeToolParams>,
+    ) -> String {
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let asset_group_id = params.asset_group_id;
+        self.run_tool(|client| async move {
+            tools::listing_groups::get_pmax_listing_group_tree(&client, &cid, &asset_group_id).await
+        })
+        .await
+    }
+
+    #[tool(
+        description = "Look up brands by name prefix (BrandSuggestionService). Returns Commercial Knowledge Graph MIDs to pass as entity_ids to create_brand_list. Brand names cannot be written — BrandInfo.display_name is output-only."
+    )]
+    async fn suggest_brands(
+        &self,
+        Parameters(params): Parameters<SuggestBrandsToolParams>,
+    ) -> String {
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let prefix = params.brand_prefix;
+        self.run_tool(|client| async move {
+            tools::brand_lists::suggest_brands(&client, &cid, &prefix).await
+        })
+        .await
+    }
+
+    #[tool(
+        description = "List BRANDS shared sets (brand lists) in the account, with member entity_ids and display names."
+    )]
+    async fn list_brand_lists(&self, Parameters(params): Parameters<CustomerIdParams>) -> String {
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        self.run_tool(
+            |client| async move { tools::brand_lists::list_brand_lists(&client, &cid).await },
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Create a brand list (SharedSet type BRANDS) from Commercial Knowledge Graph entity_ids (MIDs). Brand names cannot be written (BrandInfo.display_name is output-only) — call suggest_brands first. Optionally attach the list as a negative brand exclusion on PMax campaigns. Returns a preview — call confirm_and_apply to execute."
+    )]
+    async fn create_brand_list(
+        &self,
+        Parameters(params): Parameters<CreateBrandListToolParams>,
+    ) -> String {
+        if let Some(err) = self.check_write_allowed() {
+            return err;
+        }
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let config = self.config.clone();
+        match tools::brand_lists::create_brand_list(
+            &config,
+            &cid,
+            &params.name,
+            params.entity_ids,
+            params.brand_names,
+            &params.campaign_ids,
+        ) {
+            Ok(preview) => preview.to_string(),
+            Err(e) => e.to_json().to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Attach a brand list (SharedSet type BRANDS) to campaigns as a negative BRAND_LIST campaign criterion — the only mode Performance Max supports. Returns a preview — call confirm_and_apply to execute."
+    )]
+    async fn attach_brand_list(
+        &self,
+        Parameters(params): Parameters<BrandListCampaignsToolParams>,
+    ) -> String {
+        if let Some(err) = self.check_write_allowed() {
+            return err;
+        }
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let config = self.config.clone();
+        match tools::brand_lists::attach_brand_list(
+            &config,
+            &cid,
+            &params.shared_set_id,
+            &params.campaign_ids,
+        ) {
+            Ok(preview) => preview.to_string(),
+            Err(e) => e.to_json().to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Detach a brand list from campaigns by removing the BRAND_LIST campaign criteria (IRREVERSIBLE link removal). The list itself is kept. Returns a preview — call confirm_and_apply to execute."
+    )]
+    async fn detach_brand_list(
+        &self,
+        Parameters(params): Parameters<BrandListCampaignsToolParams>,
+    ) -> String {
+        if let Some(err) = self.check_write_allowed() {
+            return err;
+        }
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let config = self.config.clone();
+        let client = match GoogleAdsClient::new(&config) {
+            Ok(c) => c,
+            Err(e) => return e.to_json().to_string(),
+        };
+        match tools::brand_lists::detach_brand_list(
+            &client,
+            &config,
+            &cid,
+            &params.shared_set_id,
+            &params.campaign_ids,
+        )
+        .await
+        {
+            Ok(preview) => preview.to_string(),
+            Err(e) => e.to_json().to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Toggle Final URL expansion and automatically created assets on a Performance Max campaign. url_expansion_opt_out maps to FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION (campaign.url_expansion_opt_out was removed from the API). automatically_created_assets maps to TEXT_ASSET_AUTOMATION. Other automation types on the campaign are preserved. Returns a preview — call confirm_and_apply to execute."
+    )]
+    async fn set_pmax_campaign_settings(
+        &self,
+        Parameters(params): Parameters<SetPmaxCampaignSettingsToolParams>,
+    ) -> String {
+        if let Some(err) = self.check_write_allowed() {
+            return err;
+        }
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let config = self.config.clone();
+        let client = match GoogleAdsClient::new(&config) {
+            Ok(c) => c,
+            Err(e) => return e.to_json().to_string(),
+        };
+        match tools::campaign_settings::set_pmax_campaign_settings(
+            &client,
+            &config,
+            &cid,
+            &params.campaign_id,
+            params.url_expansion_opt_out,
+            params.automatically_created_assets,
+        )
+        .await
+        {
+            Ok(preview) => preview.to_string(),
+            Err(e) => e.to_json().to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Set or clear tracking_url_template and/or final_url_suffix at customer (account) or campaign level. Pass an empty string to clear a field. Returns a preview — call confirm_and_apply to execute."
+    )]
+    async fn set_tracking(&self, Parameters(params): Parameters<SetTrackingToolParams>) -> String {
+        if let Some(err) = self.check_write_allowed() {
+            return err;
+        }
+        let cid = self.resolve_customer_id(params.customer_id.as_deref());
+        let config = self.config.clone();
+        match tools::campaign_settings::set_tracking(
+            &config,
+            &cid,
+            &params.level,
+            params.campaign_id.as_deref(),
+            params.tracking_url_template,
+            params.final_url_suffix,
+        ) {
             Ok(preview) => preview.to_string(),
             Err(e) => e.to_json().to_string(),
         }

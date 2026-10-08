@@ -5,6 +5,48 @@ All notable changes to `mcp-google-ads` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-10-08
+
+### Added
+
+- Feed-only (retail) Performance Max. `create_pmax_campaign` accepts `merchant_id`
+  and `feed_label` (`Campaign.shoppingSetting`; `feed_label` replaced the
+  deprecated `sales_country`). When `merchant_id` is set, headlines, long
+  headlines, descriptions, business name, and images are optional so a Shopping-
+  style PMax can be created from the Merchant Center feed alone. Campaigns still
+  default to PAUSED. Language targeting (`language_ids`), Maximize Conversion
+  Value with optional `target_roas`, Maximize Conversions with optional
+  `target_cpa`, Final URL expansion, and automatically created assets can be set
+  at create time. Retail campaigns also get a listing group tree (all products
+  unless `listing_group` is supplied). Callers that already pass text assets
+  keep the same contract.
+
+- `create_pmax_asset_group` / `update_pmax_asset_group` — additional asset
+  groups on an existing PMax campaign (feed-only allowed), rename, pause/enable,
+  set final URLs.
+
+- `set_pmax_listing_groups` / `get_pmax_listing_group_tree` — atomically replace
+  an asset group's product partition tree (brand, product type L1–L5, Google
+  product category, item ID, custom labels 0–4) with include/exclude semantics,
+  and read the current tree. An "everything else" sibling is added at each
+  subdivision; existing nodes are removed children-first in the same mutate.
+
+- PMax brand exclusions: `suggest_brands`, `list_brand_lists`,
+  `create_brand_list`, `attach_brand_list`, `detach_brand_list`. Brand lists are
+  SharedSet type `BRANDS` attached as a negative `brandList` campaign criterion
+  (not `campaignSharedSet`). Creating members from brand **names** is not
+  supported: `BrandInfo.display_name` is output-only; pass Commercial Knowledge
+  Graph `entity_id` values from `suggest_brands`.
+
+- `set_pmax_campaign_settings` toggles Final URL expansion and automatically
+  created assets. `campaign.url_expansion_opt_out` was removed from the API;
+  `url_expansion_opt_out=true` writes
+  `FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION=OPTED_OUT`. Other automation types
+  on the campaign are fetched and preserved.
+
+- `set_tracking` sets or clears `tracking_url_template` and `final_url_suffix`
+  at customer (account) or campaign level. Empty string clears a field.
+
 ## [0.13.0] - 2026-08-24
 
 ### Added

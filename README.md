@@ -89,7 +89,7 @@ An MCP server that gives Claude full read + write access to Google Ads accounts 
 
 ## Features
 
-- **63 tools** - Campaign management, RSA ads, keywords, extensions, PMax, audiences, bidding, scheduling, keyword planner, conversions, geo targeting, policy
+- **74 tools** - Campaign management, RSA ads, keywords, extensions, feed-only PMax, audiences, bidding, scheduling, keyword planner, conversions, geo targeting, policy
 - **Two-step safety** - All mutations return a preview; nothing executes until you confirm
 - **Budget guardrails** - Configurable daily budget cap, bid increase limits, broad+manual CPC blocker
 - **Audit logging** - Every mutation logged to a local JSON file with timestamp and dry-run status
@@ -159,7 +159,7 @@ All configuration is via environment variables. No config files.
 
 ## Tools
 
-### Read (19 tools)
+### Read (23 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -176,14 +176,18 @@ All configuration is via environment variables. No config files.
 | `run_gaql` | Execute arbitrary GAQL queries (json/table/csv) |
 | `search_geo_targets` | Find location IDs for geo-targeting |
 | `get_geo_performance` | Performance breakdown by location |
+| `get_demographics` | Demographic criteria (income, age, gender) on ad groups, positive and negative |
 | `list_recommendations` | Active Google Ads recommendations |
 | `list_extensions` | List campaign extensions (sitelinks, callouts, snippets) |
 | `discover_keywords` | Keyword ideas from seed keywords (Keyword Planner) |
 | `get_keyword_forecasts` | Historical keyword metrics for forecasting |
 | `get_policy_issues` | Disapproved or limited ads and policy violations |
 | `get_conversion_actions` | Conversion actions configured in the account |
+| `get_pmax_listing_group_tree` | Nested, labelled listing group (product filter) tree for a PMax asset group |
+| `suggest_brands` | Look up brand MIDs by name prefix (`BrandSuggestionService`) |
+| `list_brand_lists` | BRANDS shared sets and their member entity IDs |
 
-### Write (39 tools)
+### Write (51 tools)
 
 All write tools return a preview. Call `confirm_and_apply` with `dry_run=false` to execute.
 
@@ -194,6 +198,8 @@ All write tools return a preview. Call `confirm_and_apply` with `dry_run=false` 
 | `exclude_geo_target` | Exclude a location from a campaign (negative location criterion) |
 | `remove_geo_target` | Remove a positively-targeted location from a campaign (destructive) |
 | `set_campaign_geo_target_type` | Set a campaign's geo target type (`PRESENCE` vs `PRESENCE_OR_INTEREST`) for positive and/or negative targeting |
+| `exclude_demographics` | Exclude income / age / gender tiers from ad groups (negative criteria) |
+| `remove_demographic_criterion` | Remove a demographic criterion from an ad group (destructive) |
 | `draft_responsive_search_ad` | Create RSA (3-15 headlines, 2-4 descriptions). Defaults to PAUSED; pass `status: "ENABLED"` to opt out. |
 | `update_responsive_search_ad` | Edit an existing RSA in place — headlines, descriptions, final URL, display paths. Only the fields provided are written; preserves the ad's ID and asset performance history, unlike remove + re-create. |
 | `create_ad_group` | Create ad group in existing campaign. Defaults to PAUSED; pass `status: "ENABLED"` to opt out. |
@@ -213,7 +219,15 @@ All write tools return a preview. Call `confirm_and_apply` with `dry_run=false` 
 | `create_callouts` | Callout extensions |
 | `create_structured_snippets` | Structured snippet extensions |
 | `remove_extension` | Remove a campaign extension (destructive) |
-| `create_pmax_campaign` | Performance Max campaign with text assets |
+| `create_pmax_campaign` | Performance Max campaign. Pass `merchant_id` for a feed-only retail PMax (text/image assets optional); omit it and headlines remain required |
+| `create_pmax_asset_group` | Additional PMax asset group (feed-only allowed). Defaults to PAUSED |
+| `update_pmax_asset_group` | Rename, pause/enable, or set final URLs on a PMax asset group |
+| `set_pmax_listing_groups` | Atomically replace an asset group's listing group tree (`include_only` / `exclude` / `partitions`) |
+| `create_brand_list` | BRANDS shared set from Commercial KG `entity_ids` (names cannot be written) |
+| `attach_brand_list` | Attach a brand list as a negative PMax brand exclusion |
+| `detach_brand_list` | Detach a brand list from campaigns (destructive) |
+| `set_pmax_campaign_settings` | Final URL expansion + automatically created assets (`TEXT_ASSET_AUTOMATION`) |
+| `set_tracking` | `tracking_url_template` / `final_url_suffix` at customer or campaign level |
 | `add_audience_targeting` | Target audiences (TARGETING/OBSERVATION) |
 | `create_portfolio_bidding_strategy` | Portfolio bidding (CPA, ROAS, impression share) |
 | `create_conversion_action` | Create a conversion action for server-side click uploads (UPLOAD_CLICKS, gclid-based) |
@@ -221,6 +235,8 @@ All write tools return a preview. Call `confirm_and_apply` with `dry_run=false` 
 | `update_keyword_bid` | Modify keyword CPC bid |
 | `upload_image_asset` | Upload base64-encoded image |
 | `upload_text_asset` | Create reusable text asset |
+| `link_asset_to_asset_group` | Link an uploaded asset onto a PMax asset group |
+| `add_asset_group_signal` | Add search-theme or audience signals to a PMax asset group |
 | `set_campaign_schedule` | Ad scheduling / dayparting |
 | `apply_recommendation` | Apply a Google recommendation, optionally with type-specific `apply_parameters` |
 | `dismiss_recommendation` | Dismiss a recommendation |
@@ -228,6 +244,46 @@ All write tools return a preview. Call `confirm_and_apply` with `dry_run=false` 
 | `enable_entity` | Enable paused entity |
 | `remove_entity` | Permanently remove entity (destructive) |
 | `confirm_and_apply` | Execute a previewed change (dry_run=true default) |
+
+---
+
+## Feed-only Performance Max (Shopping-style)
+
+Retail PMax is a Performance Max campaign with `shoppingSetting.merchantId` set. Text and image assets are optional; Google builds ads from the Merchant Center feed. Campaigns are created **PAUSED**.
+
+Greece example IDs: location `2300`, language `1022` (el), feed label `GR`. `feed_label` replaced the deprecated `sales_country` field; a country code does not by itself enable serving in that country — set `geo_target_ids` too.
+
+### Example: feed-only PMax with 3 asset groups split by brand / product type
+
+1. Create the campaign (no headlines). Confirm via `confirm_and_apply`.
+
+```json
+{
+  "campaign_name": "GR Feed PMax",
+  "daily_budget": 40.0,
+  "bidding_strategy": "MAXIMIZE_CONVERSION_VALUE",
+  "target_roas": 3.5,
+  "merchant_id": "123456789",
+  "feed_label": "GR",
+  "geo_target_ids": ["2300"],
+  "language_ids": ["1022"],
+  "final_urls": ["https://shop.example.gr"],
+  "url_expansion_opt_out": true,
+  "automatically_created_assets": false
+}
+```
+
+2. After apply, create two more asset groups and split products:
+
+| Asset group | Listing group spec |
+|-------------|-------------------|
+| Nike | `include_only: [{ "dimension": "BRAND", "value": "Nike" }]` |
+| Adidas | `include_only: [{ "dimension": "BRAND", "value": "Adidas" }]` |
+| Rest of shoes | `include_only: [{ "dimension": "PRODUCT_TYPE_L1", "value": "Shoes" }]` — or `exclude` brands Nike and Adidas |
+
+`include_only` builds a SUBDIVISION root, UNIT_INCLUDED leaves for the named values, and an UNIT_EXCLUDED "everything else" sibling (required by the API). `exclude` inverts that. `set_pmax_listing_groups` removes the existing tree and creates the new one in the same mutate.
+
+Brand exclusions: `suggest_brands` → `create_brand_list` with the returned MIDs → `attach_brand_list`. Brand **names** cannot be written; `BrandInfo.display_name` is output-only.
 
 ---
 
@@ -284,15 +340,16 @@ All write tools return a preview. Call `confirm_and_apply` with `dry_run=false` 
 |---|---|---|---|---|---|
 | **Language** | Rust | Python | Python | Python | Python |
 | **API version** | v25 | v25 | v25 | v21 | v25 |
-| **Total tools** | 50 | 43 | 52 | 63 | 2 |
-| **Write tools** | 32 | 16 | 26 | 25 | 0 |
-| **Tests** | 322 | partial | 0 | 0 | N/A |
+| **Total tools** | 74 | 43 | 52 | 63 | 2 |
+| **Write tools** | 51 | 16 | 26 | 25 | 0 |
+| **Tests** | 360+ | partial | 0 | 0 | N/A |
 
 ### Features
 
 | Feature | this | adloop | mikdeangelis | grantweston | Official |
 |---------|------|--------|-------------|-------------|----------|
-| Campaign creation | Search + PMax | Search | Search + PMax | 7 types | - |
+| Campaign creation | Search + feed-only PMax | Search | Search + PMax | 7 types | - |
+| PMax listing groups / brand lists | yes | - | - | - | - |
 | RSA ads | yes | yes | yes | yes | - |
 | Ad group CRUD | yes | yes | yes | yes | - |
 | Keywords (positive + negative) | yes | yes | yes | yes | - |
@@ -325,7 +382,7 @@ All write tools return a preview. Call `confirm_and_apply` with `dry_run=false` 
 | Read-only mode | yes | - | - | - | N/A |
 | Blocked operations list | yes | - | - | - | N/A |
 | Input validation (char limits, URLs) | yes | yes | Pydantic | partial | N/A |
-| Unit test coverage | 322 tests | partial | 0 | 0 | N/A |
+| Unit test coverage | 360+ tests | partial | 0 | 0 | N/A |
 | Binary size / startup | 10.8 MB / instant | Python | Python | Python | Python |
 
 ---
@@ -424,7 +481,7 @@ cargo fmt --check
 
 The `tests/integration_test.rs` suite requires real Google Ads test
 credentials (`GOOGLE_ADS_TEST_*` env vars); the rest of the test files
-(13 wiremock-driven suites) run without any credentials.
+(14 wiremock-driven suites) run without any credentials.
 
 ---
 
